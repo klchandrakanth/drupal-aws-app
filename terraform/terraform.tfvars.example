@@ -1,0 +1,27 @@
+# AWS Configuration
+aws_region = "us-east-1"
+environment = "production"
+
+# VPC Configuration
+vpc_cidr = "10.0.0.0/16"
+availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c"]
+
+# Database Configuration
+db_name         = "drupal"
+db_username     = "drupal"
+db_password     = "your-secure-password-here"
+db_root_password = "your-secure-root-password-here"
+
+# Application Configuration
+app_port = 80
+
+# Domain Configuration (optional)
+domain_name = "your-domain.com"
+
+# Scaling Configuration (Cost-optimized for deployment)
+app_count  = 1  # Single task for cost optimization
+app_cpu    = 1024
+app_memory = 2048
+
+# GitHub Repository
+github_repository_url = "https://github.com/your-username/drupal-aws-app"

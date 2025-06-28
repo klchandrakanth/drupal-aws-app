@@ -1,0 +1,32 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Installing required packages...
+      - yum install -y amazon-efs-utils
+      - echo Creating mount point...
+      - mkdir -p /mnt/efs
+      - echo Mounting EFS...
+      - mount -t efs -o tls,accesspoint=$EFS_ACCESS_POINT_ID $EFS_FILE_SYSTEM_ID:/ /mnt/efs
+      - echo EFS mounted successfully
+  build:
+    commands:
+      - echo Content deployment started on `date`
+      - echo Copying content files...
+      - cp -r ./content/* /mnt/efs/ 2>/dev/null || echo "No content directory found, creating structure"
+      - mkdir -p /mnt/efs/files
+      - mkdir -p /mnt/efs/private
+      - echo Setting proper permissions...
+      - chown -R 48:48 /mnt/efs/
+      - chmod -R 755 /mnt/efs/
+      - echo Content deployment completed on `date`
+  post_build:
+    commands:
+      - echo Unmounting EFS...
+      - umount /mnt/efs
+      - echo Content deployment completed successfully on `date`
+
+artifacts:
+  files:
+    - content-deployment-complete.txt

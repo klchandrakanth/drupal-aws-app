@@ -1,0 +1,171 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [ main, production ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION: us-east-1
+  ENVIRONMENT: production
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Build Docker image
+      run: |
+        docker build -t drupal-aws-app:test ./docker
+        echo "Docker build successful"
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/production'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: "1.0"
+
+    - name: Terraform Init
+      run: |
+        cd terraform
+        terraform init
+
+    - name: Get CodeBuild Project Names
+      run: |
+        cd terraform
+        DOCKER_BUILD_PROJECT=$(terraform output -raw codebuild_docker_project)
+        CONTENT_DEPLOY_PROJECT=$(terraform output -raw codebuild_content_project)
+        echo "DOCKER_BUILD_PROJECT=$DOCKER_BUILD_PROJECT" >> $GITHUB_ENV
+        echo "CONTENT_DEPLOY_PROJECT=$CONTENT_DEPLOY_PROJECT" >> $GITHUB_ENV
+
+    - name: Build Docker Image
+      run: |
+        BUILD_ID=$(aws codebuild start-build \
+          --project-name "$DOCKER_BUILD_PROJECT" \
+          --source-version "refs/heads/${{ github.ref_name }}" \
+          --region "${{ env.AWS_REGION }}" \
+          --query 'build.id' \
+          --output text)
+
+        echo "Build ID: $BUILD_ID"
+
+        # Wait for build to complete
+        aws codebuild wait build-completed --id "$BUILD_ID" --region "${{ env.AWS_REGION }}"
+
+        BUILD_STATUS=$(aws codebuild batch-get-builds \
+          --ids "$BUILD_ID" \
+          --region "${{ env.AWS_REGION }}" \
+          --query 'builds[0].buildStatus' \
+          --output text)
+
+        if [ "$BUILD_STATUS" != "SUCCEEDED" ]; then
+          echo "Build failed with status: $BUILD_STATUS"
+          exit 1
+        fi
+
+        echo "Docker build completed successfully!"
+
+    - name: Deploy Content to EFS
+      run: |
+        CONTENT_BUILD_ID=$(aws codebuild start-build \
+          --project-name "$CONTENT_DEPLOY_PROJECT" \
+          --source-version "refs/heads/${{ github.ref_name }}" \
+          --region "${{ env.AWS_REGION }}" \
+          --query 'build.id' \
+          --output text)
+
+        echo "Content Build ID: $CONTENT_BUILD_ID"
+
+        # Wait for content deployment to complete
+        aws codebuild wait build-completed --id "$CONTENT_BUILD_ID" --region "${{ env.AWS_REGION }}"
+
+        CONTENT_BUILD_STATUS=$(aws codebuild batch-get-builds \
+          --ids "$CONTENT_BUILD_ID" \
+          --region "${{ env.AWS_REGION }}" \
+          --query 'builds[0].buildStatus' \
+          --output text)
+
+        if [ "$CONTENT_BUILD_STATUS" != "SUCCEEDED" ]; then
+          echo "Content deployment failed with status: $CONTENT_BUILD_STATUS"
+          exit 1
+        fi
+
+        echo "Content deployment completed successfully!"
+
+    - name: Deploy to ECS
+      run: |
+        cd terraform
+        CODEDEPLOY_APP=$(terraform output -raw codedeploy_application)
+
+        # Get the latest task definition
+        TASK_DEF_ARN=$(aws ecs describe-task-definition \
+          --task-definition "${{ env.ENVIRONMENT }}-drupal-app" \
+          --region "${{ env.AWS_REGION }}" \
+          --query 'taskDefinition.taskDefinitionArn' \
+          --output text)
+
+        echo "Latest task definition: $TASK_DEF_ARN"
+
+        # Create CodeDeploy deployment
+        DEPLOYMENT_ID=$(aws deploy create-deployment \
+          --application-name "$CODEDEPLOY_APP" \
+          --deployment-group-name "${{ env.ENVIRONMENT }}-drupal-deployment-group" \
+          --revision '{
+            "revisionType": "AppSpecContent",
+            "appSpecContent": {
+              "content": "{\"version\":0.0,\"Resources\":[{\"TargetService\":{\"Type\":\"AWS::ECS::Service\",\"Properties\":{\"TaskDefinition\":\"'$TASK_DEF_ARN'\",\"LoadBalancerInfo\":{\"ContainerName\":\"drupal-app\",\"ContainerPort\":80}}}}]}"
+            }
+          }' \
+          --region "${{ env.AWS_REGION }}" \
+          --query 'deploymentId' \
+          --output text)
+
+        echo "Deployment ID: $DEPLOYMENT_ID"
+
+        # Wait for deployment to complete
+        aws deploy wait deployment-successful --deployment-id "$DEPLOYMENT_ID" --region "${{ env.AWS_REGION }}"
+
+        DEPLOYMENT_STATUS=$(aws deploy get-deployment \
+          --deployment-id "$DEPLOYMENT_ID" \
+          --region "${{ env.AWS_REGION }}" \
+          --query 'deploymentInfo.status' \
+          --output text)
+
+        if [ "$DEPLOYMENT_STATUS" != "Succeeded" ]; then
+          echo "Deployment failed with status: $DEPLOYMENT_STATUS"
+          exit 1
+        fi
+
+        echo "Deployment completed successfully!"
+
+    - name: Get Application URL
+      run: |
+        cd terraform
+        APP_URL=$(terraform output -raw app_url)
+        echo "Application URL: $APP_URL"
+        echo "APP_URL=$APP_URL" >> $GITHUB_ENV
+
+    - name: Health Check
+      run: |
+        sleep 30  # Wait for application to be ready
+        curl -f "$APP_URL" || exit 1
+        echo "Health check passed!"

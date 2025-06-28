@@ -1,0 +1,125 @@
+{
+  "family": "drupal-app",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "drupal-mariadb",
+      "image": "mariadb:10.6",
+      "portMappings": [
+        {
+          "containerPort": 3306,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "MYSQL_ROOT_PASSWORD",
+          "value": "ROOT_PASSWORD"
+        },
+        {
+          "name": "MYSQL_DATABASE",
+          "value": "drupal"
+        },
+        {
+          "name": "MYSQL_USER",
+          "value": "drupal"
+        },
+        {
+          "name": "MYSQL_PASSWORD",
+          "value": "PASSWORD"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/drupal-mariadb",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "mysqladmin ping -h localhost -u root -pROOT_PASSWORD || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    },
+    {
+      "name": "drupal-app",
+      "image": "<IMAGE1_NAME>",
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "DB_HOST",
+          "value": "localhost"
+        },
+        {
+          "name": "DB_NAME",
+          "value": "drupal"
+        },
+        {
+          "name": "DB_USER",
+          "value": "drupal"
+        },
+        {
+          "name": "DB_PASS",
+          "value": "PASSWORD"
+        }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "drupal-content",
+          "containerPath": "/var/www/html/web/sites/default/files",
+          "readOnly": false
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/drupal-app",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost/ || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "dependsOn": [
+        {
+          "containerName": "drupal-mariadb",
+          "condition": "HEALTHY"
+        }
+      ]
+    }
+  ],
+  "volumes": [
+    {
+      "name": "drupal-content",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "EFS_FILE_SYSTEM_ID",
+        "rootDirectory": "/",
+        "transitEncryption": "ENABLED",
+        "transitEncryptionPort": 2049,
+        "authorizationConfig": {
+          "accessPointId": "EFS_ACCESS_POINT_ID",
+          "iam": "ENABLED"
+        }
+      }
+    }
+  ]
+}
