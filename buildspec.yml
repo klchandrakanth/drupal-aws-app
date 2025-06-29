@@ -12,19 +12,19 @@ phases:
       - echo "Image tag: $IMAGE_TAG"
   build:
     commands:
-      - echo "Build started on $(date)"
+      - echo "Build started"
       - echo "Building the Docker image..."
       - docker build -t $REPOSITORY_URI:$IMAGE_TAG -t $REPOSITORY_URI:latest ./docker
-      - echo "Build completed on $(date)"
+      - echo "Build completed"
   post_build:
     commands:
-      - echo "Build completed on $(date)"
+      - echo "Build completed"
       - echo "Pushing the Docker image..."
       - docker push $REPOSITORY_URI:$IMAGE_TAG
       - docker push $REPOSITORY_URI:latest
       - echo "Writing image definitions file..."
       - printf '{"ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDefinitions.json
-      - echo "Pushing completed on $(date)"
+      - echo "Pushing completed"
 
 artifacts:
   files:
