@@ -1,4 +1,4 @@
-FROM centos:9
+FROM quay.io/centos/centos:9
 
 # Install system dependencies
 RUN dnf update -y && dnf install -y \
