@@ -1,3 +1,7 @@
+#!/bin/bash
+
+# Generate buildspec.yml dynamically to avoid YAML encoding issues
+cat > buildspec.yml << 'EOF'
 version: 0.2
 
 phases:
@@ -30,3 +34,6 @@ artifacts:
     - imageDefinitions.json
     - appspec.yml
     - taskdef.json
+EOF
+
+echo "buildspec.yml generated successfully"
