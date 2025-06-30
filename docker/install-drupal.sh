@@ -83,14 +83,15 @@ fi
 
 # Check if Drupal is already installed
 echo "Checking if Drupal is installed..."
-if drush status bootstrap 2>/dev/null; then
+if /usr/local/bin/drush status bootstrap 2>/dev/null; then
     echo "Drupal appears to be installed, but forcing reinstallation..."
 fi
 
 echo "Installing Drupal using Drush..."
 
-# Install Drupal using Drush
-drush site:install standard \
+# Change to the Drupal web directory and install using global Drush
+cd /var/www/html/web
+/usr/local/bin/drush site:install standard \
     --db-url="mysql://${DB_USER}:${DB_PASS}@127.0.0.1:3306/${DB_NAME}" \
     --account-name=admin \
     --account-pass=admin123 \
