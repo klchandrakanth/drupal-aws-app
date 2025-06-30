@@ -60,9 +60,12 @@ RUN wget -O drush.phar https://github.com/drush-ops/drush-launcher/releases/late
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy Drupal installation script
-COPY docker/install-drupal.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/install-drupal.sh
+# Pre-install Drupal during build process
+RUN echo "Installing Drupal during build process..." && \
+    composer create-project drupal/recommended-project:^10 web --no-interaction && \
+    chown -R apache:apache /var/www/html/web && \
+    chmod -R 755 /var/www/html/web && \
+    echo "Drupal installed successfully during build!"
 
 # Copy custom Apache configuration
 COPY docker/apache.conf /etc/httpd/conf.d/000-default.conf
@@ -94,17 +97,9 @@ PHP_FPM_PID=$!\n\
 # Wait a moment for PHP-FPM to start\n\
 sleep 3\n\
 \n\
-# Run Drupal installation\n\
-echo "Running Drupal installation..."\n\
+# Run Drupal configuration\n\
+echo "Running Drupal configuration..."\n\
 /usr/local/bin/install-drupal.sh\n\
-INSTALL_EXIT_CODE=$?\n\
-\n\
-if [ $INSTALL_EXIT_CODE -eq 0 ]; then\n\
-    echo "Drupal installation completed successfully!"\n\
-else\n\
-    echo "ERROR: Drupal installation failed with exit code $INSTALL_EXIT_CODE"\n\
-    echo "Continuing anyway to allow manual installation..."\n\
-fi\n\
 \n\
 # Start Apache in foreground\n\
 echo "Starting Apache..."\n\
@@ -123,5 +118,9 @@ RUN sed -i 's|^\s*SSLCertificateFile.*|    SSLCertificateFile /etc/pki/tls/certs
     sed -i 's|^\s*SSLCertificateKeyFile.*|    SSLCertificateKeyFile /etc/pki/tls/private/apache-selfsigned.key|' /etc/httpd/conf.d/ssl.conf && \
     sed -i 's|^\s*DocumentRoot.*|    DocumentRoot /var/www/html/web|' /etc/httpd/conf.d/ssl.conf
 
-# Start with installation script
+# Copy Drupal configuration script
+COPY docker/install-drupal.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/install-drupal.sh
+
+# Start with simple startup script
 CMD ["/usr/local/bin/start.sh"]
