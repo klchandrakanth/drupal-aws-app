@@ -3,7 +3,11 @@ version: 0.2
 phases:
   pre_build:
     commands:
-      - echo "Hello from CodeBuild"
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPOSITORY_URI
+      - echo Repository URI: $ECR_REPOSITORY_URI
+      - echo Image tag: $IMAGE_TAG
   build:
     commands:
       - echo "Build phase"
