@@ -29,8 +29,10 @@ if mountpoint -q /var/www/html/web/sites/default/files; then
     chmod -R 755 sites/default/files 2>/dev/null || true
 else
     echo "Creating files directory with proper permissions..."
-    # Try to remove if it exists but is not a mount point
-    rm -rf sites/default/files 2>/dev/null || echo "Could not remove files directory, continuing..."
+    # Only try to remove if it's not a mount point and exists
+    if [ -d "sites/default/files" ] && ! mountpoint -q sites/default/files; then
+        rm -rf sites/default/files 2>/dev/null || echo "Could not remove files directory, continuing..."
+    fi
     mkdir -p sites/default/files
     chown -R apache:apache sites/default/files
     chmod -R 755 sites/default/files

@@ -300,7 +300,7 @@ resource "aws_ecs_service" "app" {
   desired_count   = 1
 
   deployment_controller {
-    type = "CODE_DEPLOY"
+    type = "ECS"
   }
 
   network_configuration {

@@ -61,11 +61,11 @@ RUN wget -O drush.phar https://github.com/drush-ops/drush-launcher/releases/late
 WORKDIR /var/www/html
 
 # Copy Drupal installation script
-COPY install-drupal.sh /usr/local/bin/
+COPY docker/install-drupal.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/install-drupal.sh
 
 # Copy custom Apache configuration
-COPY apache.conf /etc/httpd/conf.d/000-default.conf
+COPY docker/apache.conf /etc/httpd/conf.d/000-default.conf
 
 # Create health check script
 RUN echo '#!/bin/bash\n\

@@ -3,7 +3,7 @@ Resources:
   - TargetService:
       Type: AWS::ECS::Service
       Properties:
-        TaskDefinition: <TASK_DEFINITION>
+        TaskDefinition: arn:aws:ecs:us-east-1:396503876336:task-definition/production-drupal-app:3
         LoadBalancerInfo:
           ContainerName: "drupal-app"
           ContainerPort: 80
