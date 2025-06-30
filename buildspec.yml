@@ -21,16 +21,8 @@ phases:
       - docker push $REPOSITORY_URI:$IMAGE_TAG
       - docker push $REPOSITORY_URI:latest
       - printf '{"ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDefinitions.json
-      - echo "Creating appspec.yml..."
-      - echo "version: 0.0" > appspec.yml
-      - echo "Resources:" >> appspec.yml
-      - echo "  - TargetService:" >> appspec.yml
-      - echo "      Type: AWS::ECS::Service" >> appspec.yml
-      - echo "      Properties:" >> appspec.yml
-      - echo "        TaskDefinition: TASK_DEFINITION_PLACEHOLDER" >> appspec.yml
-      - echo "        LoadBalancerInfo:" >> appspec.yml
-      - echo "          ContainerName: drupal-app" >> appspec.yml
-      - echo "          ContainerPort: 80" >> appspec.yml
+      - echo "Creating appspec.yml from template..."
+      - cp appspec-template.yml appspec.yml
       - sed -i "s|TASK_DEFINITION_PLACEHOLDER|$TASKDEF_ARN|g" appspec.yml
       - echo "Creating taskdef.json..."
       - aws ecs describe-task-definition --task-definition production-drupal-app --region $AWS_DEFAULT_REGION --query 'taskDefinition' > taskdef.json
