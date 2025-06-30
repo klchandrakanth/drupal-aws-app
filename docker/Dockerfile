@@ -94,15 +94,13 @@ PHP_FPM_PID=$!\n\
 # Wait a moment for PHP-FPM to start\n\
 sleep 3\n\
 \n\
-# Run Drupal installation with timeout\n\
+# Run Drupal installation\n\
 echo "Running Drupal installation..."\n\
-timeout 600 /usr/local/bin/install-drupal.sh\n\
+/usr/local/bin/install-drupal.sh\n\
 INSTALL_EXIT_CODE=$?\n\
 \n\
 if [ $INSTALL_EXIT_CODE -eq 0 ]; then\n\
     echo "Drupal installation completed successfully!"\n\
-elif [ $INSTALL_EXIT_CODE -eq 124 ]; then\n\
-    echo "WARNING: Drupal installation timed out, but continuing..."\n\
 else\n\
     echo "ERROR: Drupal installation failed with exit code $INSTALL_EXIT_CODE"\n\
     echo "Continuing anyway to allow manual installation..."\n\
