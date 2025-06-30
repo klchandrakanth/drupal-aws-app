@@ -5,7 +5,8 @@ phases:
     commands:
       - echo "Pre-build phase"
       - aws --version
-      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 396503876336.dkr.ecr.us-east-1.amazonaws.com/production-drupal
+      - aws ecr get-login-password --region us-east-1 > /tmp/ecr_password
+      - docker login --username AWS --password-stdin 396503876336.dkr.ecr.us-east-1.amazonaws.com/production-drupal < /tmp/ecr_password
       - echo Repository URI: 396503876336.dkr.ecr.us-east-1.amazonaws.com/production-drupal
       - echo Image tag: latest
   build:
