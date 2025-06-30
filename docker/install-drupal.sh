@@ -21,70 +21,41 @@ if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\.$' | grep -v '^\.\.$' 
     rm -rf /var/www/html/web/.[^.]* 2>/dev/null || true
 fi
 
+# Wait for MariaDB to be ready (max 5 minutes)
+echo "Waiting for MariaDB to be ready..."
+for i in {1..60}; do
+    if mysqladmin ping -h localhost -u root -p"${MYSQL_ROOT_PASSWORD:-root}" --silent; then
+        echo "MariaDB is ready!"
+        break
+    fi
+    echo "Waiting for MariaDB... (attempt $i/60)"
+    sleep 5
+done
+
+# Check if MariaDB is accessible
+if ! mysqladmin ping -h localhost -u root -p"${MYSQL_ROOT_PASSWORD:-root}" --silent; then
+    echo "ERROR: MariaDB is not accessible after 5 minutes"
+    exit 1
+fi
+
 # Change to web directory
 cd /var/www/html/web
 
-# Install Drupal using Composer
+# Install Drupal with increased timeout and memory limit
 echo "Installing Drupal using Composer..."
-composer create-project drupal/recommended-project:^10 . --no-interaction
+export COMPOSER_MEMORY_LIMIT=-1
+export COMPOSER_PROCESS_TIMEOUT=600
 
-# Handle files directory - check if EFS is mounted
-if mountpoint -q /var/www/html/web/sites/default/files; then
-    echo "EFS volume is mounted at sites/default/files. Using existing mount."
-    # Ensure proper permissions on the mounted directory
-    chown -R apache:apache sites/default/files 2>/dev/null || true
-    chmod -R 755 sites/default/files 2>/dev/null || true
-else
-    echo "Creating files directory with proper permissions..."
-    # Only try to remove if it's not a mount point and exists
-    if [ -d "sites/default/files" ] && ! mountpoint -q sites/default/files; then
-        rm -rf sites/default/files 2>/dev/null || echo "Could not remove files directory, continuing..."
-    fi
-    mkdir -p sites/default/files
-    chown -R apache:apache sites/default/files
-    chmod -R 755 sites/default/files
+# Run composer create-project with verbose output and error handling
+if ! composer create-project drupal/recommended-project:^10 . --no-interaction --prefer-dist --verbose; then
+    echo "ERROR: Composer create-project failed"
+    exit 1
 fi
 
-# Wait for MariaDB to be available
-MAX_TRIES=30
-TRIES=0
-until mysql -h "$DB_HOST" -u"$DB_USER" -p"$DB_PASS" -e 'SELECT 1' "$DB_NAME" >/dev/null 2>&1; do
-  TRIES=$((TRIES+1))
-  if [ $TRIES -ge $MAX_TRIES ]; then
-    echo "MariaDB not available after $MAX_TRIES attempts. Drupal will need to be installed manually via web interface."
-    break
-  fi
-  echo "Waiting for MariaDB to be available... ($TRIES/$MAX_TRIES)"
-  sleep 2
-done
+echo "Drupal installation completed successfully!"
 
-# Install Drupal using Drush (if database is available)
-if command -v mysql &> /dev/null; then
-    echo "Installing Drupal using Drush..."
-    cd /var/www/html/web
-
-    # Create settings.php from default
-    cp sites/default/default.settings.php sites/default/settings.php
-
-    # Install Drupal using Drush
-    drush site:install --db-url="mysql://$DB_USER:$DB_PASS@$DB_HOST:3306/$DB_NAME" \
-        --account-name=admin \
-        --account-pass=admin123 \
-        --site-name="My Drupal Site" \
-        --yes
-
-    # Create some test content
-    echo "Creating test content..."
-    drush en -y node_revision_delete
-    drush en -y pathauto
-
-    # Create a test article
-    drush node:create --type=article --title="Welcome to Drupal on AWS" \
-        --body="This is a test article created automatically during installation. Your Drupal site is now running on AWS with ECS Fargate!"
-
-    echo "Drupal installation completed successfully!"
-else
-    echo "MySQL client not available. Drupal will need to be installed manually via web interface."
-fi
+# Set proper permissions
+chown -R apache:apache /var/www/html/web
+chmod -R 755 /var/www/html/web/sites/default/files
 
 echo "Drupal installation script completed."

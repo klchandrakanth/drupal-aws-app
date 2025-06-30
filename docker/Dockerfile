@@ -79,20 +79,38 @@ RUN sed -i '/DirectoryIndex index.php index.html/d' /etc/httpd/conf/httpd.conf |
 
 # Create startup script to run both services
 RUN printf '#!/bin/bash\n\
+set -e\n\
+\n\
+echo "Starting Drupal container..."\n\
+\n\
 # Create PHP-FPM socket directory\n\
 mkdir -p /run/php-fpm\n\
 \n\
-# Run Drupal installation\n\
-/usr/local/bin/install-drupal.sh\n\
-\n\
-# Start PHP-FPM\n\
+# Start PHP-FPM in background\n\
+echo "Starting PHP-FPM..."\n\
 php-fpm --nodaemonize &\n\
+PHP_FPM_PID=$!\n\
 \n\
 # Wait a moment for PHP-FPM to start\n\
-sleep 2\n\
+sleep 3\n\
 \n\
-# Start Apache\n\
-httpd -D FOREGROUND\n\
+# Run Drupal installation with timeout\n\
+echo "Running Drupal installation..."\n\
+timeout 600 /usr/local/bin/install-drupal.sh\n\
+INSTALL_EXIT_CODE=$?\n\
+\n\
+if [ $INSTALL_EXIT_CODE -eq 0 ]; then\n\
+    echo "Drupal installation completed successfully!"\n\
+elif [ $INSTALL_EXIT_CODE -eq 124 ]; then\n\
+    echo "WARNING: Drupal installation timed out, but continuing..."\n\
+else\n\
+    echo "ERROR: Drupal installation failed with exit code $INSTALL_EXIT_CODE"\n\
+    echo "Continuing anyway to allow manual installation..."\n\
+fi\n\
+\n\
+# Start Apache in foreground\n\
+echo "Starting Apache..."\n\
+exec httpd -D FOREGROUND\n\
 ' > /usr/local/bin/start.sh && chmod +x /usr/local/bin/start.sh
 
 # Expose ports
