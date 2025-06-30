@@ -17,6 +17,20 @@ mkdir -p /var/www/html/web
 # Check if web directory is empty (excluding . and ..)
 if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\.$' | grep -v '^\.\.$' | wc -l)" -gt 0 ]; then
     echo "Web directory is not empty. Cleaning it before installation..."
+
+    # Remove files safely, avoiding EFS mount point
+    if [ -d "/var/www/html/web/sites/default/files" ]; then
+        if mountpoint -q "/var/www/html/web/sites/default/files"; then
+            echo "EFS mount detected at /var/www/html/web/sites/default/files - skipping removal"
+            # Clean contents inside the mount instead of removing the mount point
+            find /var/www/html/web/sites/default/files -mindepth 1 -delete 2>/dev/null || true
+        else
+            echo "Removing /var/www/html/web/sites/default/files (not a mount point)"
+            rm -rf /var/www/html/web/sites/default/files
+        fi
+    fi
+
+    # Remove other files and directories
     rm -rf /var/www/html/web/*
     rm -rf /var/www/html/web/.[^.]* 2>/dev/null || true
 fi
@@ -64,9 +78,28 @@ fi
 
 echo "Drupal installation completed successfully!"
 
-# Set proper permissions
+# Handle the files directory properly after installation
+echo "Setting up files directory..."
+if [ -d "sites/default/files" ]; then
+    if mountpoint -q "sites/default/files"; then
+        echo "EFS mount is active at sites/default/files"
+        # Ensure proper permissions on the mounted directory
+        chown -R apache:apache sites/default/files 2>/dev/null || true
+        chmod -R 755 sites/default/files 2>/dev/null || true
+    else
+        echo "Creating files directory with proper permissions"
+        chown -R apache:apache sites/default/files
+        chmod -R 755 sites/default/files
+    fi
+else
+    echo "Creating files directory..."
+    mkdir -p sites/default/files
+    chown -R apache:apache sites/default/files
+    chmod -R 755 sites/default/files
+fi
+
+# Set proper permissions for the entire web directory
 echo "Setting permissions..."
 chown -R apache:apache /var/www/html/web
-chmod -R 755 /var/www/html/web/sites/default/files
 
 echo "Drupal installation script completed."
