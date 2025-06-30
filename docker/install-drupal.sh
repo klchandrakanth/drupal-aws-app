@@ -14,6 +14,13 @@ fi
 # Create web directory if it doesn't exist
 mkdir -p /var/www/html/web
 
+# Check if web directory is empty (excluding . and ..)
+if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\.$' | grep -v '^\.\.$' | wc -l)" -gt 0 ]; then
+    echo "Web directory is not empty. Cleaning it before installation..."
+    rm -rf /var/www/html/web/*
+    rm -rf /var/www/html/web/.[^.]* 2>/dev/null || true
+fi
+
 # Change to web directory
 cd /var/www/html/web
 
