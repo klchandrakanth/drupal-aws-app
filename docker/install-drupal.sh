@@ -18,10 +18,10 @@ mkdir -p /var/www/html/web
 if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\.$' | grep -v '^\.\.$' | wc -l)" -gt 0 ]; then
     echo "Web directory is not empty. Cleaning it before installation..."
 
-    # Remove files safely, avoiding EFS mount point
+    # Handle EFS mount point first
     if [ -d "/var/www/html/web/sites/default/files" ]; then
         if mountpoint -q "/var/www/html/web/sites/default/files"; then
-            echo "EFS mount detected at /var/www/html/web/sites/default/files - skipping removal"
+            echo "EFS mount detected at /var/www/html/web/sites/default/files - cleaning contents only"
             # Clean contents inside the mount instead of removing the mount point
             find /var/www/html/web/sites/default/files -mindepth 1 -delete 2>/dev/null || true
         else
@@ -30,9 +30,22 @@ if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\.$' | grep -v '^\.\.$' 
         fi
     fi
 
-    # Remove other files and directories
-    rm -rf /var/www/html/web/*
-    rm -rf /var/www/html/web/.[^.]* 2>/dev/null || true
+    # Remove other files and directories, but preserve the files directory if it's a mount
+    if mountpoint -q "/var/www/html/web/sites/default/files" 2>/dev/null; then
+        echo "Preserving EFS mount, removing other files..."
+        # Remove everything except the files directory
+        find /var/www/html/web -mindepth 1 -maxdepth 1 ! -name 'sites' -exec rm -rf {} + 2>/dev/null || true
+        if [ -d "/var/www/html/web/sites" ]; then
+            find /var/www/html/web/sites -mindepth 1 -maxdepth 1 ! -name 'default' -exec rm -rf {} + 2>/dev/null || true
+            if [ -d "/var/www/html/web/sites/default" ]; then
+                find /var/www/html/web/sites/default -mindepth 1 -maxdepth 1 ! -name 'files' -exec rm -rf {} + 2>/dev/null || true
+            fi
+        fi
+    else
+        echo "Removing all files from web directory..."
+        rm -rf /var/www/html/web/*
+        rm -rf /var/www/html/web/.[^.]* 2>/dev/null || true
+    fi
 fi
 
 # Wait for MariaDB to be ready (max 5 minutes)

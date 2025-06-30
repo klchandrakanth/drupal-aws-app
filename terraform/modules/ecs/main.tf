@@ -58,7 +58,7 @@ resource "aws_ecs_task_definition" "app" {
   container_definitions = jsonencode([
     {
       name  = "drupal-mariadb"
-      image = "mariadb:10.6"
+      image = "396503876336.dkr.ecr.us-east-1.amazonaws.com/production-mariadb:latest"
 
       portMappings = [
         {
@@ -69,19 +69,19 @@ resource "aws_ecs_task_definition" "app" {
 
       environment = [
         {
-          name  = "MYSQL_ROOT_PASSWORD"
+          name  = "MARIADB_ROOT_PASSWORD"
           value = var.db_root_password
         },
         {
-          name  = "MYSQL_DATABASE"
+          name  = "MARIADB_DATABASE"
           value = var.db_name
         },
         {
-          name  = "MYSQL_USER"
+          name  = "MARIADB_USER"
           value = var.db_username
         },
         {
-          name  = "MYSQL_PASSWORD"
+          name  = "MARIADB_PASSWORD"
           value = var.db_password
         }
       ]
