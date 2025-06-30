@@ -15,7 +15,7 @@ fi
 mkdir -p /var/www/html/web
 
 # Check if web directory is empty (excluding . and ..)
-if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\.$' | grep -v '^\.\.$' | wc -l)" -gt 0 ]; then
+if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\\.$' | grep -v '^\\.\\.$' | wc -l)" -gt 0 ]; then
     echo "Web directory is not empty. Cleaning it before installation..."
 
     # Handle EFS mount point first
@@ -30,10 +30,10 @@ if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\.$' | grep -v '^\.\.$' 
         fi
     fi
 
-    # Remove other files and directories, but preserve the files directory if it's a mount
+    # Remove all files and directories, but preserve the files directory if it's a mount
     if mountpoint -q "/var/www/html/web/sites/default/files" 2>/dev/null; then
         echo "Preserving EFS mount, removing other files..."
-        # Remove everything except the files directory
+        # Remove everything except the files directory structure
         find /var/www/html/web -mindepth 1 -maxdepth 1 ! -name 'sites' -exec rm -rf {} + 2>/dev/null || true
         if [ -d "/var/www/html/web/sites" ]; then
             find /var/www/html/web/sites -mindepth 1 -maxdepth 1 ! -name 'default' -exec rm -rf {} + 2>/dev/null || true
@@ -44,6 +44,25 @@ if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\.$' | grep -v '^\.\.$' 
     else
         echo "Removing all files from web directory..."
         rm -rf /var/www/html/web/*
+        rm -rf /var/www/html/web/.[^.]* 2>/dev/null || true
+    fi
+fi
+
+# Double-check that the directory is now empty (excluding . and ..)
+if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\\.$' | grep -v '^\\.\\.$' | wc -l)" -gt 0 ]; then
+    echo "WARNING: Web directory is still not empty after cleanup. Forcing removal of remaining files..."
+    # Force remove everything except the EFS mount
+    if mountpoint -q "/var/www/html/web/sites/default/files" 2>/dev/null; then
+        # Keep only the files directory structure
+        find /var/www/html/web -mindepth 1 -maxdepth 1 ! -name 'sites' -exec rm -rf {} + 2>/dev/null || true
+        if [ -d "/var/www/html/web/sites" ]; then
+            find /var/www/html/web/sites -mindepth 1 -maxdepth 1 ! -name 'default' -exec rm -rf {} + 2>/dev/null || true
+            if [ -d "/var/www/html/web/sites/default" ]; then
+                find /var/www/html/web/sites/default -mindepth 1 -maxdepth 1 ! -name 'files' -exec rm -rf {} + 2>/dev/null || true
+            fi
+        fi
+    else
+        rm -rf /var/www/html/web/* 2>/dev/null || true
         rm -rf /var/www/html/web/.[^.]* 2>/dev/null || true
     fi
 fi
