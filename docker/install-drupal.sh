@@ -38,7 +38,25 @@ chmod -R 755 sites/default/files
 # Check if settings.php exists, if not create a basic one
 if [ ! -f "sites/default/settings.php" ]; then
     echo "Creating basic settings.php..."
-    cp sites/default/default.settings.php sites/default/settings.php
+    if [ -f "sites/default/default.settings.php" ]; then
+        cp sites/default/default.settings.php sites/default/settings.php
+    else
+        echo "default.settings.php not found, creating minimal settings.php..."
+        cat > sites/default/settings.php << 'EOF'
+<?php
+$databases['default']['default'] = [
+  'database' => $_ENV['DB_NAME'],
+  'username' => $_ENV['DB_USER'],
+  'password' => $_ENV['DB_PASS'],
+  'host' => $_ENV['DB_HOST'],
+  'port' => '3306',
+  'driver' => 'mysql',
+  'prefix' => '',
+];
+$settings['hash_salt'] = 'drupal-hash-salt-' . uniqid();
+$settings['config_sync_directory'] = '../config/sync';
+EOF
+    fi
     chown apache:apache sites/default/settings.php
     chmod 644 sites/default/settings.php
 fi
