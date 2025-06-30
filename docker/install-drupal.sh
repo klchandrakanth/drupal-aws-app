@@ -82,22 +82,23 @@ EOF
 fi
 
 # Check if Drupal is already installed
-if [ ! -f "sites/default/settings.php" ] || ! php core/scripts/drupal status bootstrap 2>/dev/null; then
-    echo "Installing Drupal using Drush..."
-
-    # Install Drupal using Drush
-    vendor/bin/drush site:install standard \
-        --db-url="mysql://${DB_USER}:${DB_PASS}@127.0.0.1:3306/${DB_NAME}" \
-        --account-name=admin \
-        --account-pass=admin123 \
-        --account-mail=admin@example.com \
-        --site-name="Drupal on AWS" \
-        --site-mail=admin@example.com \
-        --yes
-
-    echo "Drupal installation completed!"
-else
-    echo "Drupal is already installed."
+echo "Checking if Drupal is installed..."
+if php core/scripts/drupal status bootstrap 2>/dev/null; then
+    echo "Drupal appears to be installed, but forcing reinstallation..."
 fi
+
+echo "Installing Drupal using Drush..."
+
+# Install Drupal using Drush
+vendor/bin/drush site:install standard \
+    --db-url="mysql://${DB_USER}:${DB_PASS}@127.0.0.1:3306/${DB_NAME}" \
+    --account-name=admin \
+    --account-pass=admin123 \
+    --account-mail=admin@example.com \
+    --site-name="Drupal on AWS" \
+    --site-mail=admin@example.com \
+    --yes
+
+echo "Drupal installation completed!"
 
 echo "Drupal configuration completed successfully!"
