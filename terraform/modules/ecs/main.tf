@@ -117,7 +117,7 @@ resource "aws_ecs_task_definition" "app" {
       environment = [
         {
           name  = "DB_HOST"
-          value = "localhost"
+          value = "127.0.0.1"
         },
         {
           name  = "DB_NAME"

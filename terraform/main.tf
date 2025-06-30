@@ -83,7 +83,7 @@ module "ecs" {
   db_password     = var.db_password
   db_root_password = var.db_root_password
 
-  app_image = module.ecr.repository_url
+  app_image = "${module.ecr.repository_url}:3ee4595b7b5cd94b228bee8532a88ba2f416e61f"
   app_port  = var.app_port
 
   domain_name = var.domain_name
