@@ -7,6 +7,10 @@ phases:
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPOSITORY_URI
       - REPOSITORY_URI=$ECR_REPOSITORY_URI
       - IMAGE_TAG=$IMAGE_TAG
+      - echo "Getting latest task definition..."
+      - aws ecs describe-task-definition --task-definition production-drupal-app --region $AWS_DEFAULT_REGION --query 'taskDefinition.taskDefinitionArn' --output text > taskdef_arn.txt
+      - TASKDEF_ARN=$(cat taskdef_arn.txt)
+      - echo "Task Definition ARN: $TASKDEF_ARN"
   build:
     commands:
       - echo "Building the Docker image..."
@@ -17,9 +21,157 @@ phases:
       - docker push $REPOSITORY_URI:$IMAGE_TAG
       - docker push $REPOSITORY_URI:latest
       - printf '{"ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDefinitions.json
+      - echo "Creating appspec.yml..."
+      - |
+        cat > appspec.yml << EOF
+        version: 0.0
+        Resources:
+          - TargetService:
+              Type: AWS::ECS::Service
+              Properties:
+                TaskDefinition: $TASKDEF_ARN
+                LoadBalancerInfo:
+                  ContainerName: "drupal-app"
+                  ContainerPort: 80
+        EOF
+      - echo "Creating custom taskdef.json without MariaDB EFS volume..."
+      - |
+        cat > taskdef.json << EOF
+        {
+          "executionRoleArn": "arn:aws:iam::396503876336:role/production-ecs-execution-role",
+          "containerDefinitions": [
+            {
+              "name": "drupal-mariadb",
+              "image": "mariadb:10.6",
+              "portMappings": [
+                {
+                  "containerPort": 3306,
+                  "protocol": "tcp"
+                }
+              ],
+              "environment": [
+                {
+                  "name": "MYSQL_ROOT_PASSWORD",
+                  "value": "drupal_root_password"
+                },
+                {
+                  "name": "MYSQL_DATABASE",
+                  "value": "drupal"
+                },
+                {
+                  "name": "MYSQL_USER",
+                  "value": "drupal_user"
+                },
+                {
+                  "name": "MYSQL_PASSWORD",
+                  "value": "drupal_password"
+                }
+              ],
+              "mountPoints": [],
+              "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                  "awslogs-group": "/ecs/production-drupal-mariadb",
+                  "awslogs-region": "us-east-1",
+                  "awslogs-stream-prefix": "ecs"
+                }
+              },
+              "healthCheck": {
+                "command": ["CMD-SHELL", "mysqladmin ping -h localhost -u root -pdrupal_root_password || exit 1"],
+                "interval": 30,
+                "timeout": 5,
+                "retries": 3,
+                "startPeriod": 60
+              }
+            },
+            {
+              "name": "drupal-app",
+              "image": "$REPOSITORY_URI:$IMAGE_TAG",
+              "portMappings": [
+                {
+                  "containerPort": 80,
+                  "protocol": "tcp"
+                }
+              ],
+              "environment": [
+                {
+                  "name": "DB_HOST",
+                  "value": "localhost"
+                },
+                {
+                  "name": "DB_NAME",
+                  "value": "drupal"
+                },
+                {
+                  "name": "DB_USER",
+                  "value": "drupal_user"
+                },
+                {
+                  "name": "DB_PASS",
+                  "value": "drupal_password"
+                }
+              ],
+              "mountPoints": [
+                {
+                  "sourceVolume": "drupal-content",
+                  "containerPath": "/var/www/html/web/sites/default/files",
+                  "readOnly": false
+                }
+              ],
+              "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                  "awslogs-group": "/ecs/production-drupal-app",
+                  "awslogs-region": "us-east-1",
+                  "awslogs-stream-prefix": "ecs"
+                }
+              },
+              "healthCheck": {
+                "command": ["CMD-SHELL", "curl -f http://localhost/ || exit 1"],
+                "interval": 30,
+                "timeout": 5,
+                "retries": 3,
+                "startPeriod": 60
+              },
+              "dependsOn": [
+                {
+                  "containerName": "drupal-mariadb",
+                  "condition": "HEALTHY"
+                }
+              ]
+            }
+          ],
+          "volumes": [
+            {
+              "name": "drupal-content",
+              "efsVolumeConfiguration": {
+                "fileSystemId": "fs-005b8956cdec1dbd1",
+                "rootDirectory": "/",
+                "transitEncryption": "ENABLED",
+                "transitEncryptionPort": 2049,
+                "authorizationConfig": {
+                  "accessPointId": "fsap-026083cc1683ec80d",
+                  "iam": "ENABLED"
+                }
+              }
+            }
+          ],
+          "family": "production-drupal-app",
+          "networkMode": "awsvpc",
+          "requiresCompatibilities": ["FARGATE"],
+          "cpu": 1024,
+          "memory": 2048,
+          "taskRoleArn": "arn:aws:iam::396503876336:role/production-ecs-task-role"
+        }
+        EOF
+      - echo "Uploading artifacts to S3..."
+      - aws s3 cp appspec.yml s3://production-drupal-codebuild-artifacts-lwouy9p2/production-drupal-docker-build/appspec.yml
+      - aws s3 cp taskdef.json s3://production-drupal-codebuild-artifacts-lwouy9p2/production-drupal-docker-build/taskdef.json
+      - aws s3 cp imageDefinitions.json s3://production-drupal-codebuild-artifacts-lwouy9p2/production-drupal-docker-build/imageDefinitions.json
 
 artifacts:
   files:
     - imageDefinitions.json
     - appspec.yml
     - taskdef.json
+  discard-paths: no
