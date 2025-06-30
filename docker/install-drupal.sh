@@ -51,7 +51,7 @@ fi
 # Wait for MariaDB to be ready (max 5 minutes)
 echo "Waiting for MariaDB to be ready..."
 for i in {1..60}; do
-    if mysqladmin ping -h localhost -u root -p"${MYSQL_ROOT_PASSWORD:-root}" --silent; then
+    if timeout 5 bash -c "</dev/tcp/localhost/3306" 2>/dev/null; then
         echo "MariaDB is ready!"
         break
     fi
@@ -60,7 +60,7 @@ for i in {1..60}; do
 done
 
 # Check if MariaDB is accessible
-if ! mysqladmin ping -h localhost -u root -p"${MYSQL_ROOT_PASSWORD:-root}" --silent; then
+if ! timeout 5 bash -c "</dev/tcp/localhost/3306" 2>/dev/null; then
     echo "ERROR: MariaDB is not accessible after 5 minutes"
     exit 1
 fi
