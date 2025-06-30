@@ -17,6 +17,7 @@ mkdir -p /var/www/html/web
 # Check if web directory is empty (excluding . and ..)
 if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\\.$' | grep -v '^\\.\\.$' | wc -l)" -gt 0 ]; then
     echo "Web directory is not empty. Cleaning it before installation..."
+    echo "Files before cleanup: $(ls -la /var/www/html/web/)"
 
     # Handle EFS mount point first
     if [ -d "/var/www/html/web/sites/default/files" ]; then
@@ -51,6 +52,8 @@ fi
 # Double-check that the directory is now empty (excluding . and ..)
 if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\\.$' | grep -v '^\\.\\.$' | wc -l)" -gt 0 ]; then
     echo "WARNING: Web directory is still not empty after cleanup. Forcing removal of remaining files..."
+    echo "Remaining files: $(ls -la /var/www/html/web/)"
+
     # Force remove everything except the EFS mount
     if mountpoint -q "/var/www/html/web/sites/default/files" 2>/dev/null; then
         # Keep only the files directory structure
@@ -65,7 +68,19 @@ if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\\.$' | grep -v '^\\.\\.
         rm -rf /var/www/html/web/* 2>/dev/null || true
         rm -rf /var/www/html/web/.[^.]* 2>/dev/null || true
     fi
+
+    # Final check and force removal if still not empty
+    if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\\.$' | grep -v '^\\.\\.$' | wc -l)" -gt 0 ]; then
+        echo "CRITICAL: Directory still not empty. Force removing everything..."
+        echo "Final remaining files: $(ls -la /var/www/html/web/)"
+        # Force remove everything, including hidden files
+        rm -rf /var/www/html/web/* /var/www/html/web/.[^.]* 2>/dev/null || true
+        # Recreate the directory structure for EFS mount
+        mkdir -p /var/www/html/web/sites/default/files
+    fi
 fi
+
+echo "Final directory contents: $(ls -la /var/www/html/web/)"
 
 # Wait for MariaDB to be ready (max 5 minutes)
 echo "Waiting for MariaDB to be ready..."
