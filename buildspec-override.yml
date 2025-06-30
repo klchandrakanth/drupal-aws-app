@@ -1,0 +1,29 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo "Logging in to Amazon ECR..."
+      - aws ecr get-login-password --region us-east-1 > /tmp/ecr_password
+      - docker login --username AWS --password-stdin $ECR_REPOSITORY_URI < /tmp/ecr_password
+      - echo "Repository URI: $ECR_REPOSITORY_URI"
+      - echo "Image tag: $IMAGE_TAG"
+  build:
+    commands:
+      - echo "Building the Docker image..."
+      - docker build --platform linux/amd64 -t $ECR_REPOSITORY_URI:$IMAGE_TAG .
+      - docker tag $ECR_REPOSITORY_URI:$IMAGE_TAG $ECR_REPOSITORY_URI:latest
+      - echo "Pushing the Docker images..."
+      - docker push $ECR_REPOSITORY_URI:$IMAGE_TAG
+      - docker push $ECR_REPOSITORY_URI:latest
+      - echo "Writing image definitions file..."
+      - printf '{"ImageURI":"%s"}' $ECR_REPOSITORY_URI:$IMAGE_TAG > imageDefinitions.json
+  post_build:
+    commands:
+      - echo "Build completed successfully"
+
+artifacts:
+  files:
+    - imageDefinitions.json
+    - appspec.yml
+    - taskdef.json
