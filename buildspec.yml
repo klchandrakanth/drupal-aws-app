@@ -4,14 +4,11 @@ phases:
   pre_build:
     commands:
       - echo "Logging in to Amazon ECR..."
-      - aws ecr get-login-password --region $AWS_DEFAULT_REGION > ecr_password.txt
-      - docker login --username AWS --password-stdin $ECR_REPOSITORY_URI < ecr_password.txt
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPOSITORY_URI
       - REPOSITORY_URI=$ECR_REPOSITORY_URI
       - IMAGE_TAG=$IMAGE_TAG
-      - echo "Getting latest task definition..."
-      - aws ecs describe-task-definition --task-definition production-drupal-app --region $AWS_DEFAULT_REGION --query 'taskDefinition.taskDefinitionArn' --output text > taskdef_arn.txt
-      - TASKDEF_ARN=$(cat taskdef_arn.txt)
-      - echo "Task Definition ARN: $TASKDEF_ARN"
+      - echo "Repository URI: $REPOSITORY_URI"
+      - echo "Image tag: $IMAGE_TAG"
   build:
     commands:
       - echo "Building the Docker image..."
@@ -22,22 +19,7 @@ phases:
       - docker push $REPOSITORY_URI:$IMAGE_TAG
       - docker push $REPOSITORY_URI:latest
       - printf '{"ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDefinitions.json
-      - echo "Creating appspec.yml from template..."
-      - cp appspec-template.yml appspec.yml
-      - sed -i "s|TASK_DEFINITION_PLACEHOLDER|$TASKDEF_ARN|g" appspec.yml
-      - echo "Creating taskdef.json..."
-      - aws ecs describe-task-definition --task-definition production-drupal-app --region $AWS_DEFAULT_REGION --query 'taskDefinition' > taskdef.json
-      - echo "Updating task definition with new image..."
-      - jq --arg img "$REPOSITORY_URI:$IMAGE_TAG" '.containerDefinitions[1].image = $img' taskdef.json > taskdef_temp.json
-      - mv taskdef_temp.json taskdef.json
-      - echo "Uploading artifacts to S3..."
-      - aws s3 cp appspec.yml s3://production-drupal-codebuild-artifacts-lwouy9p2/production-drupal-docker-build/appspec.yml
-      - aws s3 cp taskdef.json s3://production-drupal-codebuild-artifacts-lwouy9p2/production-drupal-docker-build/taskdef.json
-      - aws s3 cp imageDefinitions.json s3://production-drupal-codebuild-artifacts-lwouy9p2/production-drupal-docker-build/imageDefinitions.json
 
 artifacts:
   files:
     - imageDefinitions.json
-    - appspec.yml
-    - taskdef.json
-  discard-paths: no
