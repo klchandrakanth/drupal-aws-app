@@ -23,20 +23,21 @@ phases:
       - printf '{"ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDefinitions.json
       - echo "Creating appspec.yml..."
       - |
-        cat > appspec.yml << EOF
+        cat > appspec.yml << 'EOF'
         version: 0.0
         Resources:
           - TargetService:
               Type: AWS::ECS::Service
               Properties:
-                TaskDefinition: $TASKDEF_ARN
+                TaskDefinition: TASK_DEFINITION_PLACEHOLDER
                 LoadBalancerInfo:
                   ContainerName: "drupal-app"
                   ContainerPort: 80
         EOF
+      - sed -i "s|TASK_DEFINITION_PLACEHOLDER|$TASKDEF_ARN|g" appspec.yml
       - echo "Creating custom taskdef.json without MariaDB EFS volume..."
       - |
-        cat > taskdef.json << EOF
+        cat > taskdef.json << 'EOF'
         {
           "executionRoleArn": "arn:aws:iam::396503876336:role/production-ecs-execution-role",
           "containerDefinitions": [
@@ -86,7 +87,7 @@ phases:
             },
             {
               "name": "drupal-app",
-              "image": "$REPOSITORY_URI:$IMAGE_TAG",
+              "image": "IMAGE_PLACEHOLDER",
               "portMappings": [
                 {
                   "containerPort": 80,
@@ -164,6 +165,7 @@ phases:
           "taskRoleArn": "arn:aws:iam::396503876336:role/production-ecs-task-role"
         }
         EOF
+      - sed -i "s|IMAGE_PLACEHOLDER|$REPOSITORY_URI:$IMAGE_TAG|g" taskdef.json
       - echo "Uploading artifacts to S3..."
       - aws s3 cp appspec.yml s3://production-drupal-codebuild-artifacts-lwouy9p2/production-drupal-docker-build/appspec.yml
       - aws s3 cp taskdef.json s3://production-drupal-codebuild-artifacts-lwouy9p2/production-drupal-docker-build/taskdef.json
