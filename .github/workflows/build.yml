@@ -26,7 +26,7 @@ jobs:
 
     - name: Build and push Docker image
       run: |
-        docker build --platform linux/amd64 -t ${{ steps.login-ecr.outputs.registry }}/production-drupal:${{ github.sha }} docker/
+        docker build --platform linux/amd64 -t ${{ steps.login-ecr.outputs.registry }}/production-drupal:${{ github.sha }} -f docker/Dockerfile .
         docker tag ${{ steps.login-ecr.outputs.registry }}/production-drupal:${{ github.sha }} ${{ steps.login-ecr.outputs.registry }}/production-drupal:latest
         docker push ${{ steps.login-ecr.outputs.registry }}/production-drupal:${{ github.sha }}
         docker push ${{ steps.login-ecr.outputs.registry }}/production-drupal:latest
