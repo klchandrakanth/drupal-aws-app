@@ -70,9 +70,18 @@ RUN echo "Installing Drupal during build process..." && \
 # Copy custom Apache configuration
 COPY docker/apache.conf /etc/httpd/conf.d/000-default.conf
 
-# Update main Apache configuration to use our DocumentRoot
-RUN sed -i 's|^DocumentRoot.*|DocumentRoot /var/www/html/web|' /etc/httpd/conf/httpd.conf && \
-    sed -i 's|^<Directory "/var/www/html">|<Directory "/var/www/html/web">|' /etc/httpd/conf/httpd.conf
+# Remove default Apache configuration and replace with our own
+RUN rm -f /etc/httpd/conf.d/welcome.conf && \
+    rm -f /etc/httpd/conf.d/autoindex.conf && \
+    rm -f /etc/httpd/conf.d/userdir.conf && \
+    sed -i '/^DocumentRoot/d' /etc/httpd/conf/httpd.conf && \
+    sed -i '/^<Directory "\/var\/www\/html">/,/^<\/Directory>/d' /etc/httpd/conf/httpd.conf && \
+    echo "DocumentRoot /var/www/html/web" >> /etc/httpd/conf/httpd.conf && \
+    echo '<Directory "/var/www/html/web">' >> /etc/httpd/conf/httpd.conf && \
+    echo '    AllowOverride All' >> /etc/httpd/conf/httpd.conf && \
+    echo '    Require all granted' >> /etc/httpd/conf/httpd.conf && \
+    echo '    DirectoryIndex index.php index.html' >> /etc/httpd/conf/httpd.conf && \
+    echo '</Directory>' >> /etc/httpd/conf/httpd.conf
 
 # Create health check script
 RUN echo '#!/bin/bash\n\
