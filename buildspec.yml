@@ -15,7 +15,7 @@ phases:
   build:
     commands:
       - echo "Building the Docker image..."
-      - docker build -t $REPOSITORY_URI:$IMAGE_TAG -t $REPOSITORY_URI:latest ./docker
+      - docker build -t $REPOSITORY_URI:$IMAGE_TAG -t $REPOSITORY_URI:latest -f docker/Dockerfile .
   post_build:
     commands:
       - echo "Pushing the Docker image..."
@@ -27,9 +27,7 @@ phases:
       - sed -i "s|TASK_DEFINITION_PLACEHOLDER|$TASKDEF_ARN|g" appspec.yml
       - echo "Creating taskdef.json..."
       - aws ecs describe-task-definition --task-definition production-drupal-app --region $AWS_DEFAULT_REGION --query 'taskDefinition' > taskdef.json
-      - echo "Removing MariaDB EFS volume from task definition..."
-      - jq 'del(.volumes[] | select(.name == "mariadb-data"))' taskdef.json > taskdef_temp.json
-      - jq 'del(.containerDefinitions[0].mountPoints[] | select(.sourceVolume == "mariadb-data"))' taskdef_temp.json > taskdef.json
+      - echo "Updating task definition with new image..."
       - jq --arg img "$REPOSITORY_URI:$IMAGE_TAG" '.containerDefinitions[1].image = $img' taskdef.json > taskdef_temp.json
       - mv taskdef_temp.json taskdef.json
       - echo "Uploading artifacts to S3..."
