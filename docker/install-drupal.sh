@@ -14,74 +14,6 @@ fi
 # Create web directory if it doesn't exist
 mkdir -p /var/www/html/web
 
-# Check if web directory is empty (excluding . and ..)
-if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\\.$' | grep -v '^\\.\\.$' | wc -l)" -gt 0 ]; then
-    echo "Web directory is not empty. Cleaning it before installation..."
-    echo "Files before cleanup: $(ls -la /var/www/html/web/)"
-
-    # Handle EFS mount point first
-    if [ -d "/var/www/html/web/sites/default/files" ]; then
-        if mountpoint -q "/var/www/html/web/sites/default/files"; then
-            echo "EFS mount detected at /var/www/html/web/sites/default/files - cleaning contents only"
-            # Clean contents inside the mount instead of removing the mount point
-            find /var/www/html/web/sites/default/files -mindepth 1 -delete 2>/dev/null || true
-        else
-            echo "Removing /var/www/html/web/sites/default/files (not a mount point)"
-            rm -rf /var/www/html/web/sites/default/files
-        fi
-    fi
-
-    # Remove all files and directories, but preserve the files directory if it's a mount
-    if mountpoint -q "/var/www/html/web/sites/default/files" 2>/dev/null; then
-        echo "Preserving EFS mount, removing other files..."
-        # Remove everything except the files directory structure
-        find /var/www/html/web -mindepth 1 -maxdepth 1 ! -name 'sites' -exec rm -rf {} + 2>/dev/null || true
-        if [ -d "/var/www/html/web/sites" ]; then
-            find /var/www/html/web/sites -mindepth 1 -maxdepth 1 ! -name 'default' -exec rm -rf {} + 2>/dev/null || true
-            if [ -d "/var/www/html/web/sites/default" ]; then
-                find /var/www/html/web/sites/default -mindepth 1 -maxdepth 1 ! -name 'files' -exec rm -rf {} + 2>/dev/null || true
-            fi
-        fi
-    else
-        echo "Removing all files from web directory..."
-        rm -rf /var/www/html/web/*
-        rm -rf /var/www/html/web/.[^.]* 2>/dev/null || true
-    fi
-fi
-
-# Double-check that the directory is now empty (excluding . and ..)
-if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\\.$' | grep -v '^\\.\\.$' | wc -l)" -gt 0 ]; then
-    echo "WARNING: Web directory is still not empty after cleanup. Forcing removal of remaining files..."
-    echo "Remaining files: $(ls -la /var/www/html/web/)"
-
-    # Force remove everything except the EFS mount
-    if mountpoint -q "/var/www/html/web/sites/default/files" 2>/dev/null; then
-        # Keep only the files directory structure
-        find /var/www/html/web -mindepth 1 -maxdepth 1 ! -name 'sites' -exec rm -rf {} + 2>/dev/null || true
-        if [ -d "/var/www/html/web/sites" ]; then
-            find /var/www/html/web/sites -mindepth 1 -maxdepth 1 ! -name 'default' -exec rm -rf {} + 2>/dev/null || true
-            if [ -d "/var/www/html/web/sites/default" ]; then
-                find /var/www/html/web/sites/default -mindepth 1 -maxdepth 1 ! -name 'files' -exec rm -rf {} + 2>/dev/null || true
-            fi
-        fi
-    else
-        rm -rf /var/www/html/web/* 2>/dev/null || true
-        rm -rf /var/www/html/web/.[^.]* 2>/dev/null || true
-    fi
-
-    # Final check and force removal if still not empty
-    if [ "$(ls -A /var/www/html/web 2>/dev/null | grep -v '^\\.$' | grep -v '^\\.\\.$' | wc -l)" -gt 0 ]; then
-        echo "CRITICAL: Directory still not empty. Force removing everything..."
-        echo "Final remaining files: $(ls -la /var/www/html/web/)"
-        # Force remove everything, including hidden files
-        rm -rf /var/www/html/web/* /var/www/html/web/.[^.]* 2>/dev/null || true
-        # Recreate the directory structure for EFS mount
-        mkdir -p /var/www/html/web/sites/default/files
-    fi
-fi
-
-echo "Final directory contents: $(ls -la /var/www/html/web/)"
-
 # Wait for MariaDB to be ready (max 5 minutes)
 echo "Waiting for MariaDB to be ready..."
 for i in {1..60}; do
@@ -99,54 +31,39 @@ if ! timeout 5 bash -c "</dev/tcp/localhost/3306" 2>/dev/null; then
     exit 1
 fi
 
-# Change to web directory
-cd /var/www/html/web
-echo "Changed to web directory: $(pwd)"
+# Create Drupal in a temporary directory to avoid conflicts with existing structure
+echo "Creating Drupal in temporary directory..."
+cd /tmp
+composer create-project drupal/recommended-project:^10 drupal-temp --no-interaction
 
-# Install Drupal with increased timeout and memory limit
-echo "Installing Drupal using Composer..."
-export COMPOSER_MEMORY_LIMIT=-1
-export COMPOSER_PROCESS_TIMEOUT=600
+# Move Drupal files to web directory, preserving EFS mount
+echo "Moving Drupal files to web directory..."
+cd /var/www/html
 
-# Check if composer is available
-if ! command -v composer &> /dev/null; then
-    echo "ERROR: Composer is not available"
-    exit 1
+# Backup existing sites directory if it exists and is not a mount
+if [ -d "web/sites" ] && ! mountpoint -q "web/sites/default/files"; then
+    echo "Backing up existing sites directory..."
+    mv web/sites web/sites.backup
 fi
 
-echo "Composer version: $(composer --version)"
+# Remove everything in web directory except EFS mount
+echo "Cleaning web directory..."
+rm -rf web/* 2>/dev/null || true
 
-# Run composer create-project with verbose output and error handling
-echo "Running composer create-project..."
-if ! composer create-project drupal/recommended-project:^10 . --no-interaction --prefer-dist --verbose; then
-    echo "ERROR: Composer create-project failed"
-    exit 1
+# Move Drupal files from temp directory
+echo "Moving Drupal files..."
+mv /tmp/drupal-temp/* web/
+mv /tmp/drupal-temp/.* web/ 2>/dev/null || true
+
+# Restore sites directory structure if needed
+if [ -d "web/sites.backup" ]; then
+    echo "Restoring sites directory..."
+    mv web/sites.backup web/sites
 fi
+
+# Ensure proper permissions
+echo "Setting proper permissions..."
+chown -R www-data:www-data /var/www/html/web
+chmod -R 755 /var/www/html/web
 
 echo "Drupal installation completed successfully!"
-
-# Handle the files directory properly after installation
-echo "Setting up files directory..."
-if [ -d "sites/default/files" ]; then
-    if mountpoint -q "sites/default/files"; then
-        echo "EFS mount is active at sites/default/files"
-        # Ensure proper permissions on the mounted directory
-        chown -R apache:apache sites/default/files 2>/dev/null || true
-        chmod -R 755 sites/default/files 2>/dev/null || true
-    else
-        echo "Creating files directory with proper permissions"
-        chown -R apache:apache sites/default/files
-        chmod -R 755 sites/default/files
-    fi
-else
-    echo "Creating files directory..."
-    mkdir -p sites/default/files
-    chown -R apache:apache sites/default/files
-    chmod -R 755 sites/default/files
-fi
-
-# Set proper permissions for the entire web directory
-echo "Setting permissions..."
-chown -R apache:apache /var/www/html/web
-
-echo "Drupal installation script completed."
