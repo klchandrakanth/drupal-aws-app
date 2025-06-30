@@ -70,6 +70,10 @@ RUN echo "Installing Drupal during build process..." && \
 # Copy custom Apache configuration
 COPY docker/apache.conf /etc/httpd/conf.d/000-default.conf
 
+# Update main Apache configuration to use our DocumentRoot
+RUN sed -i 's|^DocumentRoot.*|DocumentRoot /var/www/html/web|' /etc/httpd/conf/httpd.conf && \
+    sed -i 's|^<Directory "/var/www/html">|<Directory "/var/www/html/web">|' /etc/httpd/conf/httpd.conf
+
 # Create health check script
 RUN echo '#!/bin/bash\n\
 curl -f http://localhost/ || exit 1' > /usr/local/bin/healthcheck.sh \
