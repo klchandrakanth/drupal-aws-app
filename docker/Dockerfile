@@ -12,6 +12,7 @@ RUN dnf update -y && dnf install -y \
     nano \
     openssl \
     mod_ssl \
+    util-linux \
     && dnf clean all
 
 # Install Remi repository for newer PHP versions

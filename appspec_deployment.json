@@ -1,0 +1,1 @@
+{"version": "0.0","Resources": [{"TargetService": {"Type": "AWS::ECS::Service","Properties": {"TaskDefinition": "arn:aws:ecs:us-east-1:396503876336:task-definition/production-drupal-app:2","LoadBalancerInfo": {"ContainerName": "drupal-app","ContainerPort": 80}}}}]}

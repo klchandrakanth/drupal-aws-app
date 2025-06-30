@@ -90,7 +90,6 @@ module "ecs" {
 
   efs_file_system_id  = module.efs.file_system_id
   efs_access_point_id = module.efs.access_point_id
-  efs_mariadb_access_point_id = module.efs.mariadb_access_point_id
 }
 
 # CodeDeploy for ECS
@@ -102,6 +101,8 @@ module "codedeploy" {
   ecs_service_name   = module.ecs.service_name
   alb_listener_arn   = module.ecs.alb_listener_arn
   target_group_name  = module.ecs.target_group_name
+  target_group_blue_name = module.ecs.target_group_blue_name
+  target_group_green_name = module.ecs.target_group_green_name
 }
 
 # CloudWatch Logs

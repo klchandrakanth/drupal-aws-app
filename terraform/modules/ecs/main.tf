@@ -55,20 +55,6 @@ resource "aws_ecs_task_definition" "app" {
     }
   }
 
-  volume {
-    name = "mariadb-data"
-    efs_volume_configuration {
-      file_system_id          = var.efs_file_system_id
-      root_directory          = "/mariadb"
-      transit_encryption      = "ENABLED"
-      transit_encryption_port = 2049
-      authorization_config {
-        access_point_id = var.efs_mariadb_access_point_id
-        iam             = "ENABLED"
-      }
-    }
-  }
-
   container_definitions = jsonencode([
     {
       name  = "drupal-mariadb"
@@ -97,14 +83,6 @@ resource "aws_ecs_task_definition" "app" {
         {
           name  = "MYSQL_PASSWORD"
           value = var.db_password
-        }
-      ]
-
-      mountPoints = [
-        {
-          sourceVolume  = "mariadb-data"
-          containerPath = "/var/lib/mysql"
-          readOnly      = false
         }
       ]
 
@@ -234,6 +212,56 @@ resource "aws_lb_target_group" "app" {
   }
 }
 
+# ALB Target Group for Blue-Green Deployments
+resource "aws_lb_target_group" "app_blue" {
+  name        = "${var.environment}-drupal-tg-blue"
+  port        = var.app_port
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
+  target_type = "ip"
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    interval            = 30
+    matcher             = "200"
+    path                = "/"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    timeout             = 5
+    unhealthy_threshold = 2
+  }
+
+  tags = {
+    Name = "${var.environment}-drupal-tg-blue"
+  }
+}
+
+# ALB Target Group for Blue-Green Deployments
+resource "aws_lb_target_group" "app_green" {
+  name        = "${var.environment}-drupal-tg-green"
+  port        = var.app_port
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
+  target_type = "ip"
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    interval            = 30
+    matcher             = "200"
+    path                = "/"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    timeout             = 5
+    unhealthy_threshold = 2
+  }
+
+  tags = {
+    Name = "${var.environment}-drupal-tg-green"
+  }
+}
+
 # ALB Listener
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
@@ -241,8 +269,26 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+# ALB HTTPS Listener (using existing certificate)
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
+  certificate_arn   = "arn:aws:acm:us-east-1:396503876336:certificate/352f6056-2a93-4cea-992e-4f9b9acf2171"
+
+  default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.app.arn
+    target_group_arn = aws_lb_target_group.app_blue.arn
   }
 }
 
@@ -252,7 +298,10 @@ resource "aws_ecs_service" "app" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.app.arn
   desired_count   = 1
-  launch_type     = "FARGATE"
+
+  deployment_controller {
+    type = "CODE_DEPLOY"
+  }
 
   network_configuration {
     security_groups  = var.app_security_groups
@@ -261,7 +310,7 @@ resource "aws_ecs_service" "app" {
   }
 
   load_balancer {
-    target_group_arn = aws_lb_target_group.app.arn
+    target_group_arn = aws_lb_target_group.app_blue.arn
     container_name   = "drupal-app"
     container_port   = var.app_port
   }
@@ -271,7 +320,7 @@ resource "aws_ecs_service" "app" {
     weight            = 1
   }
 
-  depends_on = [aws_lb_listener.http]
+  depends_on = [aws_lb_listener.http, aws_lb_listener.https]
 
   tags = {
     Name = "${var.environment}-drupal-service"

@@ -31,29 +31,6 @@ resource "aws_efs_access_point" "drupal_content" {
   }
 }
 
-# EFS Access Point for MariaDB
-resource "aws_efs_access_point" "mariadb_data" {
-  file_system_id = aws_efs_file_system.drupal_content.id
-
-  root_directory {
-    path = "/mariadb-data"
-    creation_info {
-      owner_gid   = 999  # mysql group
-      owner_uid   = 999  # mysql user
-      permissions = "755"
-    }
-  }
-
-  posix_user {
-    gid = 999  # mysql group
-    uid = 999  # mysql user
-  }
-
-  tags = {
-    Name = "${var.environment}-mariadb-data-access-point"
-  }
-}
-
 # EFS Mount Targets
 resource "aws_efs_mount_target" "drupal_content" {
   count           = length(var.subnet_ids)

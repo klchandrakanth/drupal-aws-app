@@ -75,8 +75,3 @@ variable "efs_access_point_id" {
   description = "EFS access point ID for content storage"
   type        = string
 }
-
-variable "efs_mariadb_access_point_id" {
-  description = "EFS access point ID for MariaDB data storage"
-  type        = string
-}

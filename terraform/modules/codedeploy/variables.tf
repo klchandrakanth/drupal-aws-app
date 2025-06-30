@@ -22,3 +22,13 @@ variable "target_group_name" {
   description = "Name of the target group"
   type        = string
 }
+
+variable "target_group_blue_name" {
+  description = "Name of the blue target group"
+  type        = string
+}
+
+variable "target_group_green_name" {
+  description = "Name of the green target group"
+  type        = string
+}

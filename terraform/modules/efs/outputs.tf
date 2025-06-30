@@ -8,11 +8,6 @@ output "access_point_id" {
   value       = aws_efs_access_point.drupal_content.id
 }
 
-output "mariadb_access_point_id" {
-  description = "The ID of the MariaDB EFS access point"
-  value       = aws_efs_access_point.mariadb_data.id
-}
-
 output "security_group_id" {
   description = "The ID of the EFS security group"
   value       = aws_security_group.efs.id

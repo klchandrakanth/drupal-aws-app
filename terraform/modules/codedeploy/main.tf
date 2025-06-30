@@ -35,6 +35,11 @@ resource "aws_codedeploy_deployment_group" "drupal" {
   deployment_config_name = "CodeDeployDefault.ECSAllAtOnce"
   service_role_arn       = aws_iam_role.codedeploy_role.arn
 
+  deployment_style {
+    deployment_type   = "BLUE_GREEN"
+    deployment_option = "WITH_TRAFFIC_CONTROL"
+  }
+
   ecs_service {
     cluster_name = var.ecs_cluster_name
     service_name = var.ecs_service_name
@@ -47,11 +52,11 @@ resource "aws_codedeploy_deployment_group" "drupal" {
       }
 
       target_group {
-        name = var.target_group_name
+        name = var.target_group_blue_name
       }
 
       target_group {
-        name = var.target_group_name
+        name = var.target_group_green_name
       }
     }
   }

@@ -228,6 +228,7 @@ resource "aws_codebuild_project" "content_deploy" {
     type            = "GITHUB"
     location        = var.github_repository_url
     git_clone_depth = 1
+    buildspec       = "buildspec-content.yml"
   }
 
   source_version = "refs/heads/main"
