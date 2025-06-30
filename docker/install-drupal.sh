@@ -44,6 +44,12 @@ if [ ! -f "sites/default/settings.php" ]; then
         echo "default.settings.php not found, creating minimal settings.php..."
         cat > sites/default/settings.php << 'EOF'
 <?php
+
+/**
+ * @file
+ * Drupal site-specific configuration file.
+ */
+
 $databases['default']['default'] = [
   'database' => $_ENV['DB_NAME'],
   'username' => $_ENV['DB_USER'],
@@ -53,12 +59,45 @@ $databases['default']['default'] = [
   'driver' => 'mysql',
   'prefix' => '',
 ];
+
 $settings['hash_salt'] = 'drupal-hash-salt-' . uniqid();
 $settings['config_sync_directory'] = '../config/sync';
+
+// Trusted host patterns
+$settings['trusted_host_patterns'] = [
+  '^.*\.amazonaws\.com$',
+  '^.*\.elb\.amazonaws\.com$',
+];
+
+// File system settings
+$settings['file_public_path'] = 'sites/default/files';
+$settings['file_private_path'] = 'sites/default/files/private';
+
+// Skip file permissions check
+$settings['skip_permissions_hardening'] = TRUE;
 EOF
     fi
     chown apache:apache sites/default/settings.php
     chmod 644 sites/default/settings.php
+fi
+
+# Check if Drupal is already installed
+if [ ! -f "sites/default/settings.php" ] || ! php core/scripts/drupal status bootstrap 2>/dev/null; then
+    echo "Installing Drupal using Drush..."
+
+    # Install Drupal using Drush
+    vendor/bin/drush site:install standard \
+        --db-url="mysql://${DB_USER}:${DB_PASS}@127.0.0.1:3306/${DB_NAME}" \
+        --account-name=admin \
+        --account-pass=admin123 \
+        --account-mail=admin@example.com \
+        --site-name="Drupal on AWS" \
+        --site-mail=admin@example.com \
+        --yes
+
+    echo "Drupal installation completed!"
+else
+    echo "Drupal is already installed."
 fi
 
 echo "Drupal configuration completed successfully!"
