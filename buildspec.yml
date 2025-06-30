@@ -22,150 +22,142 @@ phases:
       - docker push $REPOSITORY_URI:latest
       - printf '{"ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDefinitions.json
       - echo "Creating appspec.yml..."
-      - |
-        cat > appspec.yml << 'EOF'
-        version: 0.0
-        Resources:
-          - TargetService:
-              Type: AWS::ECS::Service
-              Properties:
-                TaskDefinition: TASK_DEFINITION_PLACEHOLDER
-                LoadBalancerInfo:
-                  ContainerName: "drupal-app"
-                  ContainerPort: 80
-        EOF
-      - sed -i "s|TASK_DEFINITION_PLACEHOLDER|$TASKDEF_ARN|g" appspec.yml
+      - echo "version: 0.0" > appspec.yml
+      - echo "Resources:" >> appspec.yml
+      - echo "  - TargetService:" >> appspec.yml
+      - echo "      Type: AWS::ECS::Service" >> appspec.yml
+      - echo "      Properties:" >> appspec.yml
+      - echo "        TaskDefinition: $TASKDEF_ARN" >> appspec.yml
+      - echo "        LoadBalancerInfo:" >> appspec.yml
+      - echo "          ContainerName: drupal-app" >> appspec.yml
+      - echo "          ContainerPort: 80" >> appspec.yml
       - echo "Creating custom taskdef.json without MariaDB EFS volume..."
-      - |
-        cat > taskdef.json << 'EOF'
-        {
-          "executionRoleArn": "arn:aws:iam::396503876336:role/production-ecs-execution-role",
-          "containerDefinitions": [
-            {
-              "name": "drupal-mariadb",
-              "image": "mariadb:10.6",
-              "portMappings": [
-                {
-                  "containerPort": 3306,
-                  "protocol": "tcp"
-                }
-              ],
-              "environment": [
-                {
-                  "name": "MYSQL_ROOT_PASSWORD",
-                  "value": "drupal_root_password"
-                },
-                {
-                  "name": "MYSQL_DATABASE",
-                  "value": "drupal"
-                },
-                {
-                  "name": "MYSQL_USER",
-                  "value": "drupal_user"
-                },
-                {
-                  "name": "MYSQL_PASSWORD",
-                  "value": "drupal_password"
-                }
-              ],
-              "mountPoints": [],
-              "logConfiguration": {
-                "logDriver": "awslogs",
-                "options": {
-                  "awslogs-group": "/ecs/production-drupal-mariadb",
-                  "awslogs-region": "us-east-1",
-                  "awslogs-stream-prefix": "ecs"
-                }
-              },
-              "healthCheck": {
-                "command": ["CMD-SHELL", "mysqladmin ping -h localhost -u root -pdrupal_root_password || exit 1"],
-                "interval": 30,
-                "timeout": 5,
-                "retries": 3,
-                "startPeriod": 60
-              }
-            },
-            {
-              "name": "drupal-app",
-              "image": "IMAGE_PLACEHOLDER",
-              "portMappings": [
-                {
-                  "containerPort": 80,
-                  "protocol": "tcp"
-                }
-              ],
-              "environment": [
-                {
-                  "name": "DB_HOST",
-                  "value": "localhost"
-                },
-                {
-                  "name": "DB_NAME",
-                  "value": "drupal"
-                },
-                {
-                  "name": "DB_USER",
-                  "value": "drupal_user"
-                },
-                {
-                  "name": "DB_PASS",
-                  "value": "drupal_password"
-                }
-              ],
-              "mountPoints": [
-                {
-                  "sourceVolume": "drupal-content",
-                  "containerPath": "/var/www/html/web/sites/default/files",
-                  "readOnly": false
-                }
-              ],
-              "logConfiguration": {
-                "logDriver": "awslogs",
-                "options": {
-                  "awslogs-group": "/ecs/production-drupal-app",
-                  "awslogs-region": "us-east-1",
-                  "awslogs-stream-prefix": "ecs"
-                }
-              },
-              "healthCheck": {
-                "command": ["CMD-SHELL", "curl -f http://localhost/ || exit 1"],
-                "interval": 30,
-                "timeout": 5,
-                "retries": 3,
-                "startPeriod": 60
-              },
-              "dependsOn": [
-                {
-                  "containerName": "drupal-mariadb",
-                  "condition": "HEALTHY"
-                }
-              ]
-            }
-          ],
-          "volumes": [
-            {
-              "name": "drupal-content",
-              "efsVolumeConfiguration": {
-                "fileSystemId": "fs-005b8956cdec1dbd1",
-                "rootDirectory": "/",
-                "transitEncryption": "ENABLED",
-                "transitEncryptionPort": 2049,
-                "authorizationConfig": {
-                  "accessPointId": "fsap-026083cc1683ec80d",
-                  "iam": "ENABLED"
-                }
-              }
-            }
-          ],
-          "family": "production-drupal-app",
-          "networkMode": "awsvpc",
-          "requiresCompatibilities": ["FARGATE"],
-          "cpu": 1024,
-          "memory": 2048,
-          "taskRoleArn": "arn:aws:iam::396503876336:role/production-ecs-task-role"
-        }
-        EOF
-      - sed -i "s|IMAGE_PLACEHOLDER|$REPOSITORY_URI:$IMAGE_TAG|g" taskdef.json
+      - echo "{" > taskdef.json
+      - echo '  "executionRoleArn": "arn:aws:iam::396503876336:role/production-ecs-execution-role",' >> taskdef.json
+      - echo '  "containerDefinitions": [' >> taskdef.json
+      - echo '    {' >> taskdef.json
+      - echo '      "name": "drupal-mariadb",' >> taskdef.json
+      - echo '      "image": "mariadb:10.6",' >> taskdef.json
+      - echo '      "portMappings": [' >> taskdef.json
+      - echo '        {' >> taskdef.json
+      - echo '          "containerPort": 3306,' >> taskdef.json
+      - echo '          "protocol": "tcp"' >> taskdef.json
+      - echo '        }' >> taskdef.json
+      - echo '      ],' >> taskdef.json
+      - echo '      "environment": [' >> taskdef.json
+      - echo '        {' >> taskdef.json
+      - echo '          "name": "MYSQL_ROOT_PASSWORD",' >> taskdef.json
+      - echo '          "value": "drupal_root_password"' >> taskdef.json
+      - echo '        },' >> taskdef.json
+      - echo '        {' >> taskdef.json
+      - echo '          "name": "MYSQL_DATABASE",' >> taskdef.json
+      - echo '          "value": "drupal"' >> taskdef.json
+      - echo '        },' >> taskdef.json
+      - echo '        {' >> taskdef.json
+      - echo '          "name": "MYSQL_USER",' >> taskdef.json
+      - echo '          "value": "drupal_user"' >> taskdef.json
+      - echo '        },' >> taskdef.json
+      - echo '        {' >> taskdef.json
+      - echo '          "name": "MYSQL_PASSWORD",' >> taskdef.json
+      - echo '          "value": "drupal_password"' >> taskdef.json
+      - echo '        }' >> taskdef.json
+      - echo '      ],' >> taskdef.json
+      - echo '      "mountPoints": [],' >> taskdef.json
+      - echo '      "logConfiguration": {' >> taskdef.json
+      - echo '        "logDriver": "awslogs",' >> taskdef.json
+      - echo '        "options": {' >> taskdef.json
+      - echo '          "awslogs-group": "/ecs/production-drupal-mariadb",' >> taskdef.json
+      - echo '          "awslogs-region": "us-east-1",' >> taskdef.json
+      - echo '          "awslogs-stream-prefix": "ecs"' >> taskdef.json
+      - echo '        }' >> taskdef.json
+      - echo '      },' >> taskdef.json
+      - echo '      "healthCheck": {' >> taskdef.json
+      - echo '        "command": ["CMD-SHELL", "mysqladmin ping -h localhost -u root -pdrupal_root_password || exit 1"],' >> taskdef.json
+      - echo '        "interval": 30,' >> taskdef.json
+      - echo '        "timeout": 5,' >> taskdef.json
+      - echo '        "retries": 3,' >> taskdef.json
+      - echo '        "startPeriod": 60' >> taskdef.json
+      - echo '      }' >> taskdef.json
+      - echo '    },' >> taskdef.json
+      - echo '    {' >> taskdef.json
+      - echo '      "name": "drupal-app",' >> taskdef.json
+      - echo "      \"image\": \"$REPOSITORY_URI:$IMAGE_TAG\"," >> taskdef.json
+      - echo '      "portMappings": [' >> taskdef.json
+      - echo '        {' >> taskdef.json
+      - echo '          "containerPort": 80,' >> taskdef.json
+      - echo '          "protocol": "tcp"' >> taskdef.json
+      - echo '        }' >> taskdef.json
+      - echo '      ],' >> taskdef.json
+      - echo '      "environment": [' >> taskdef.json
+      - echo '        {' >> taskdef.json
+      - echo '          "name": "DB_HOST",' >> taskdef.json
+      - echo '          "value": "localhost"' >> taskdef.json
+      - echo '        },' >> taskdef.json
+      - echo '        {' >> taskdef.json
+      - echo '          "name": "DB_NAME",' >> taskdef.json
+      - echo '          "value": "drupal"' >> taskdef.json
+      - echo '        },' >> taskdef.json
+      - echo '        {' >> taskdef.json
+      - echo '          "name": "DB_USER",' >> taskdef.json
+      - echo '          "value": "drupal_user"' >> taskdef.json
+      - echo '        },' >> taskdef.json
+      - echo '        {' >> taskdef.json
+      - echo '          "name": "DB_PASS",' >> taskdef.json
+      - echo '          "value": "drupal_password"' >> taskdef.json
+      - echo '        }' >> taskdef.json
+      - echo '      ],' >> taskdef.json
+      - echo '      "mountPoints": [' >> taskdef.json
+      - echo '        {' >> taskdef.json
+      - echo '          "sourceVolume": "drupal-content",' >> taskdef.json
+      - echo '          "containerPath": "/var/www/html/web/sites/default/files",' >> taskdef.json
+      - echo '          "readOnly": false' >> taskdef.json
+      - echo '        }' >> taskdef.json
+      - echo '      ],' >> taskdef.json
+      - echo '      "logConfiguration": {' >> taskdef.json
+      - echo '        "logDriver": "awslogs",' >> taskdef.json
+      - echo '        "options": {' >> taskdef.json
+      - echo '          "awslogs-group": "/ecs/production-drupal-app",' >> taskdef.json
+      - echo '          "awslogs-region": "us-east-1",' >> taskdef.json
+      - echo '          "awslogs-stream-prefix": "ecs"' >> taskdef.json
+      - echo '        }' >> taskdef.json
+      - echo '      },' >> taskdef.json
+      - echo '      "healthCheck": {' >> taskdef.json
+      - echo '        "command": ["CMD-SHELL", "curl -f http://localhost/ || exit 1"],' >> taskdef.json
+      - echo '        "interval": 30,' >> taskdef.json
+      - echo '        "timeout": 5,' >> taskdef.json
+      - echo '        "retries": 3,' >> taskdef.json
+      - echo '        "startPeriod": 60' >> taskdef.json
+      - echo '      },' >> taskdef.json
+      - echo '      "dependsOn": [' >> taskdef.json
+      - echo '        {' >> taskdef.json
+      - echo '          "containerName": "drupal-mariadb",' >> taskdef.json
+      - echo '          "condition": "HEALTHY"' >> taskdef.json
+      - echo '        }' >> taskdef.json
+      - echo '      ]' >> taskdef.json
+      - echo '    }' >> taskdef.json
+      - echo '  ],' >> taskdef.json
+      - echo '  "volumes": [' >> taskdef.json
+      - echo '    {' >> taskdef.json
+      - echo '      "name": "drupal-content",' >> taskdef.json
+      - echo '      "efsVolumeConfiguration": {' >> taskdef.json
+      - echo '        "fileSystemId": "fs-005b8956cdec1dbd1",' >> taskdef.json
+      - echo '        "rootDirectory": "/",' >> taskdef.json
+      - echo '        "transitEncryption": "ENABLED",' >> taskdef.json
+      - echo '        "transitEncryptionPort": 2049,' >> taskdef.json
+      - echo '        "authorizationConfig": {' >> taskdef.json
+      - echo '          "accessPointId": "fsap-026083cc1683ec80d",' >> taskdef.json
+      - echo '          "iam": "ENABLED"' >> taskdef.json
+      - echo '        }' >> taskdef.json
+      - echo '      }' >> taskdef.json
+      - echo '    }' >> taskdef.json
+      - echo '  ],' >> taskdef.json
+      - echo '  "family": "production-drupal-app",' >> taskdef.json
+      - echo '  "networkMode": "awsvpc",' >> taskdef.json
+      - echo '  "requiresCompatibilities": ["FARGATE"],' >> taskdef.json
+      - echo '  "cpu": 1024,' >> taskdef.json
+      - echo '  "memory": 2048,' >> taskdef.json
+      - echo '  "taskRoleArn": "arn:aws:iam::396503876336:role/production-ecs-task-role"' >> taskdef.json
+      - echo "}" >> taskdef.json
       - echo "Uploading artifacts to S3..."
       - aws s3 cp appspec.yml s3://production-drupal-codebuild-artifacts-lwouy9p2/production-drupal-docker-build/appspec.yml
       - aws s3 cp taskdef.json s3://production-drupal-codebuild-artifacts-lwouy9p2/production-drupal-docker-build/taskdef.json
