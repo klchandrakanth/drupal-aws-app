@@ -1,0 +1,20 @@
+ flowchart TD
+      A[Controller detects resource to delete] --> B{Protected resource?}
+      B -->|No| C[Hard Delete immediately]
+      B -->|Yes| D[Soft Delete\nAdd tags + Remove from Terraform state\nResource becomes Orphaned]
+      D --> E[Tags applied:\nTTL = now+7d\nReasonForDeletion = Ops\nReadyForDeletion = False\nInUse = True]
+      E --> F[Costbot tracks orphaned resource]
+      F --> G[Daily CronJob publishes\ncleanup report]
+      G --> H[COA reviews resource list\nin maintenance window]
+      H --> I{COA Approved?}
+      I -->|No| J[Reschedule next window]
+      J --> G
+      I -->|Yes| K[Automation grants scavengerRoleTBD-*\ndeletion permissions\nfor defined time window]
+      K --> L[Scavenger evaluates tag conditions\nper resource]
+      L --> M{ReadyForDeletion = True\nInUse = False\nTTL expired?}
+      M -->|No| N[Skip resource\nKeep in report]
+      M -->|Yes| O[Hard Delete resource]
+      O --> P[Log deletion to audit trail\nCostbot updated]
+      P --> Q{All resources processed\nor time window expired?}
+      Q -->|No| L
+      Q -->|Yes| R[Automation revokes\nscavengerRoleTBD-* permissions]
